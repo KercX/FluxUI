@@ -3,7 +3,7 @@
 	Version: 3.0
 	Features: 50/50 (Window, Components, Feedback, Advanced, Pro Polish)
 	License: Free to use. Watermark required.
-	Author: FluxDev
+	Author: KercX
 	Details:
 	- Draggable header with smooth lerp
 	- Acrylic blur effect (simulated)
