@@ -1,14 +1,38 @@
 --[[
 	Flux UI - Complete Roblox UI Library for Executors
-	Version: 5.0
-	Features: 50/50 - Window, Tabs, all controls, feedback, advanced systems, pro polish
+	━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+	Version: 6.0
+	Features: 50/50 (Window, Tabs, all interactive components,
+	          feedback, advanced systems, pro polish)
 	Author: FluxDev
 	License: Free to use. Watermark required.
+	━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+	This library implements:
+	  • Draggable window with smooth lerp
+	  • Acrylic blur background + shadow
+	  • Resizable from bottom‑right corner
+	  • Minimize animation
+	  • Sidebar navigation with tab search
+	  • Responsive scaling (4K to mobile)
+	  • Splash intro with author name
+	  • All standard controls: Button (ripple, icon), Toggle,
+	    Slider (precision & step), Dropdown (single/multi/searchable),
+	    Keybind (icon), Color picker (hex/RGB), TextBox (clear button),
+	    Number input, Checkbox, Radio group
+	  • Feedback: Tooltips, Notification toasts, Progress bar,
+	    Circular spinner, Dividers, Label, Paragraph, Status dot,
+	    Clipboard button, Rich text support
+	  • Advanced: JSON config saving/auto‑load, Theme engine,
+	    Keybind HUD, Global UI toggle (Right Shift), Sound effects,
+	    Callback safety, Lazy loading tabs, Plugin support,
+	    Mobile toggle button, Tool auto‑hide, Custom scrollbar
+	  • Pro: Flags system (Library.Flags), Anti‑leak watermark,
+	    Obfuscation‑friendly structure
 ]]
 local FluxUI = {}
 FluxUI.__index = FluxUI
 
--- Services
+-- =============================== SERVICES ===============================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -19,27 +43,30 @@ local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 local Clipboard = (setclipboard or function(text) warn("Clipboard not available") end)
 
--- Safe callback wrapper
+-- =============================== SAFE CALLBACK ===============================
 local function safeCall(func, ...)
-	local success, err = pcall(func, ...)
-	if not success then warn("[FluxUI] Callback error: " .. tostring(err)) end
-	return success, err
+	local success, result = pcall(func, ...)
+	if not success then
+		warn("[FluxUI] Callback error: " .. tostring(result))
+	end
+	return success, result
 end
 
--- Rounded corners helper
+-- =============================== ROUNDED CORNERS ===============================
 local function roundCorners(frame, radius)
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, radius or 8)
 	corner.Parent = frame
 end
 
--- Smooth draggable header using RenderStepped Lerp
+-- =============================== SMOOTH DRAGGABLE ===============================
 local function makeDraggable(frame, dragHandle, lerpSpeed)
 	lerpSpeed = lerpSpeed or 0.2
 	local dragStart = nil
 	local startPos = nil
 	local connection = nil
 	local targetPos = nil
+	
 	dragHandle.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragStart = UserInputService:GetMouseLocation()
@@ -48,12 +75,18 @@ local function makeDraggable(frame, dragHandle, lerpSpeed)
 			connection = RunService.RenderStepped:Connect(function()
 				if dragStart then
 					local delta = UserInputService:GetMouseLocation() - dragStart
-					targetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+					targetPos = UDim2.new(
+						startPos.X.Scale,
+						startPos.X.Offset + delta.X,
+						startPos.Y.Scale,
+						startPos.Y.Offset + delta.Y
+					)
 					frame.Position = frame.Position:Lerp(targetPos, lerpSpeed)
 				end
 			end)
 		end
 	end)
+	
 	dragHandle.InputEnded:Connect(function()
 		if connection then connection:Disconnect() end
 		connection = nil
@@ -62,14 +95,19 @@ local function makeDraggable(frame, dragHandle, lerpSpeed)
 	end)
 end
 
--- Acrylic blur effect (simulated)
+-- =============================== ACRYLIC BLUR EFFECT ===============================
 local function applyAcrylic(frame)
 	frame.BackgroundTransparency = 0.2
+	
 	local gradient = Instance.new("UIGradient")
-	gradient.Color = ColorSequence.new(Color3.fromRGB(45, 45, 55), Color3.fromRGB(30, 30, 40))
+	gradient.Color = ColorSequence.new(
+		Color3.fromRGB(45, 45, 55),
+		Color3.fromRGB(30, 30, 40)
+	)
 	gradient.Transparency = NumberSequence.new(0.5, 0.7)
 	gradient.Rotation = 135
 	gradient.Parent = frame
+	
 	local blurOverlay = Instance.new("ImageLabel")
 	blurOverlay.Size = UDim2.new(1, 0, 1, 0)
 	blurOverlay.Image = "rbxassetid://13160452207"
@@ -79,7 +117,7 @@ local function applyAcrylic(frame)
 	blurOverlay.Parent = frame
 end
 
--- Drop shadow with rounded corners
+-- =============================== DROP SHADOW ===============================
 local function addShadow(parent, size)
 	local shadow = Instance.new("ImageLabel")
 	shadow.Image = "rbxassetid://13160452207"
@@ -96,14 +134,14 @@ local function addShadow(parent, size)
 	return shadow
 end
 
--- Custom scrollbar (thin)
+-- =============================== CUSTOM SCROLLBAR ===============================
 local function setupScrollbar(scrollFrame)
 	scrollFrame.ScrollBarThickness = 5
 	scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 110, 130)
 	scrollFrame.ScrollBarImageTransparency = 0.5
 end
 
--- Click sound
+-- =============================== CLICK SOUND ===============================
 local function playClick()
 	local sound = Instance.new("Sound")
 	sound.SoundId = "rbxassetid://9120386436"
@@ -113,7 +151,7 @@ local function playClick()
 	task.delay(sound.TimeLength, function() sound:Destroy() end)
 end
 
--- Tooltip helper
+-- =============================== TOOLTIP ===============================
 local function createTooltip(parent, text)
 	local tip = Instance.new("TextLabel")
 	tip.Text = text
@@ -126,6 +164,7 @@ local function createTooltip(parent, text)
 	tip.Visible = false
 	tip.ZIndex = 10
 	tip.Parent = parent
+	
 	parent.MouseEnter:Connect(function()
 		local pos = parent.AbsolutePosition
 		tip.Position = UDim2.new(0, pos.X - 160, 0, pos.Y - 10)
@@ -134,15 +173,16 @@ local function createTooltip(parent, text)
 	parent.MouseLeave:Connect(function()
 		tip.Visible = false
 	end)
+	
 	return tip
 end
 
--- Main class constructor
+-- =============================== MAIN CLASS ===============================
 function FluxUI.new()
 	return setmetatable({}, FluxUI)
 end
 
--- Window creation
+-- =============================== WINDOW CREATION ===============================
 function FluxUI:CreateWindow(config)
 	config = config or {}
 	self.config = config
@@ -159,7 +199,7 @@ function FluxUI:CreateWindow(config)
 	self.mobileToggle = nil
 	self.keybindHUD = nil
 
-	-- Load saved settings
+	-- Load saved settings (JSON)
 	if self.config.saveKey then
 		local path = self.config.saveFolder .. "/" .. self.config.saveKey .. ".json"
 		local success, data = pcall(readfile, path)
@@ -169,13 +209,13 @@ function FluxUI:CreateWindow(config)
 		pcall(function() makefolder(self.config.saveFolder) end)
 	end
 
-	-- GUI container
+	-- Create ScreenGui
 	self.gui = Instance.new("ScreenGui")
 	self.gui.Name = "FluxUI"
 	self.gui.ResetOnSpawn = false
 	self.gui.Parent = CoreGui or Players.LocalPlayer:WaitForChild("PlayerGui")
 
-	-- Splash intro
+	-- Splash intro animation
 	local splash = Instance.new("Frame")
 	splash.Size = UDim2.new(1, 0, 1, 0)
 	splash.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
@@ -222,7 +262,7 @@ function FluxUI:CreateWindow(config)
 	addShadow(win, win.Size)
 	roundCorners(win, 12)
 
-	-- Header
+	-- Header (draggable area)
 	local header = Instance.new("Frame")
 	header.Size = UDim2.new(1, 0, 0, 46)
 	header.BackgroundColor3 = Color3.fromRGB(45, 48, 58)
@@ -230,7 +270,7 @@ function FluxUI:CreateWindow(config)
 	header.BorderSizePixel = 0
 	header.Parent = win
 	roundCorners(header, 12)
-	-- Only top corners rounded
+	-- Top corners only
 	local headerCorner = Instance.new("UICorner")
 	headerCorner.CornerRadius = UDim.new(0, 12)
 	headerCorner.Parent = header
@@ -282,7 +322,7 @@ function FluxUI:CreateWindow(config)
 	minBtn.MouseButton1Click:Connect(function()
 		self.minimized = not self.minimized
 		local targetSize = self.minimized and UDim2.new(0, 200, 0, 46) or UDim2.new(0, 560, 0, 660)
-		TweenService:Create(win, TweenInfo.new(0.3), {Size = targetSize}):Play()
+		TweenService:Create(win, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = targetSize}):Play()
 	end)
 
 	-- Sidebar
@@ -307,7 +347,7 @@ function FluxUI:CreateWindow(config)
 	tabSearch.Parent = sidebar
 	roundCorners(tabSearch, 6)
 
-	-- Content area (scrollable)
+	-- Content area (ScrollingFrame with custom scrollbar)
 	local content = Instance.new("ScrollingFrame")
 	content.Size = UDim2.new(1, -180, 1, -56)
 	content.Position = UDim2.new(0, 180, 0, 56)
@@ -331,7 +371,7 @@ function FluxUI:CreateWindow(config)
 	self.contentLayout = contentLayout
 	self.header = header
 
-	-- Resizing grip (bottom‑right)
+	-- Resizing grip (bottom‑right corner)
 	local resizeGrip = Instance.new("Frame")
 	resizeGrip.Size = UDim2.new(0, 18, 0, 18)
 	resizeGrip.Position = UDim2.new(1, -18, 1, -18)
@@ -340,6 +380,7 @@ function FluxUI:CreateWindow(config)
 	resizeGrip.BorderSizePixel = 0
 	resizeGrip.Parent = win
 	roundCorners(resizeGrip, 4)
+
 	local resizeStart = nil
 	local startSize = nil
 	resizeGrip.InputBegan:Connect(function(input)
@@ -363,10 +404,10 @@ function FluxUI:CreateWindow(config)
 		resizeStart = nil
 	end)
 
-	-- Make window draggable
+	-- Make window draggable (smooth lerp)
 	makeDraggable(win, header, 0.2)
 
-	-- Responsive scaling
+	-- Responsive scaling (4K / mobile)
 	local function onViewportChange()
 		local viewport = Workspace.CurrentCamera.ViewportSize
 		local scale = math.min(viewport.X / 1920, viewport.Y / 1080)
@@ -390,7 +431,7 @@ function FluxUI:CreateWindow(config)
 	end)
 	table.insert(self.globalConnections, toggleConn)
 
-	-- Mobile toggle button
+	-- Mobile toggle button (floating)
 	self.mobileToggle = Instance.new("TextButton")
 	self.mobileToggle.Text = "Flux"
 	self.mobileToggle.Size = UDim2.new(0, 56, 0, 56)
@@ -429,7 +470,7 @@ function FluxUI:CreateWindow(config)
 	player.CharacterAdded:Connect(onCharacterAdded)
 	if player.Character then onCharacterAdded(player.Character) end
 
-	-- Watermark
+	-- Anti‑leak watermark
 	local watermark = Instance.new("TextLabel")
 	watermark.Text = "Flux UI (c) 2025"
 	watermark.TextColor3 = Color3.fromRGB(100, 110, 140)
@@ -440,13 +481,13 @@ function FluxUI:CreateWindow(config)
 	watermark.Size = UDim2.new(0, 130, 0, 18)
 	watermark.Parent = win
 
-	-- Keybind HUD overlay
+	-- Create Keybind HUD overlay
 	self:CreateKeybindHUD()
 
 	return self
 end
 
--- Tab management
+-- =============================== TAB MANAGEMENT ===============================
 function FluxUI:CreateTab(name, iconId)
 	local btn = Instance.new("TextButton")
 	btn.Text = name
@@ -487,7 +528,7 @@ function FluxUI:CreateTab(name, iconId)
 
 	if not self.activeTab then self:SelectTab(tabObj) end
 
-	-- Tab search filter
+	-- Tab search filtering
 	local searchBox = self.sidebar:FindFirstChildWhichIsA("TextBox")
 	if searchBox then
 		searchBox.Changed:Connect(function(prop)
@@ -516,7 +557,7 @@ function FluxUI:SelectTab(tab)
 	self.activeTab = tab
 end
 
--- BUTTON with icon and ripple
+-- =============================== BUTTON (with ripple & icon) ===============================
 function FluxUI:CreateButton(tab, text, callback, iconId)
 	local btn = Instance.new("TextButton")
 	btn.Text = text
@@ -540,6 +581,7 @@ function FluxUI:CreateButton(tab, text, callback, iconId)
 		btn.Text = "   " .. text
 	end
 
+	-- Ripple effect
 	local ripple = Instance.new("Frame")
 	ripple.Size = UDim2.new(0, 0, 0, 0)
 	ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -560,11 +602,12 @@ function FluxUI:CreateButton(tab, text, callback, iconId)
 		ripple.BackgroundTransparency = 0.8
 		safeCall(callback)
 	end)
+
 	createTooltip(btn, text)
 	return btn
 end
 
--- TOGGLE
+-- =============================== TOGGLE (animated switch) ===============================
 function FluxUI:CreateToggle(tab, name, defaultValue, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 40)
@@ -623,7 +666,7 @@ function FluxUI:CreateToggle(tab, name, defaultValue, callback)
 	return container
 end
 
--- SLIDER (fully working)
+-- =============================== SLIDER (precision & step, fully working) ===============================
 function FluxUI:CreateSlider(tab, name, minVal, maxVal, defaultValue, callback, isStep, stepValue)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 58)
@@ -724,11 +767,12 @@ function FluxUI:CreateSlider(tab, name, minVal, maxVal, defaultValue, callback, 
 	return container
 end
 
+-- Step slider convenience wrapper
 function FluxUI:CreateStepSlider(tab, name, minVal, maxVal, step, defaultValue, callback)
 	return self:CreateSlider(tab, name, minVal, maxVal, defaultValue, callback, true, step)
 end
 
--- DROPDOWN (single, multi, searchable)
+-- =============================== DROPDOWN (single, multi, searchable) ===============================
 function FluxUI:CreateDropdown(tab, name, items, multiSelect, defaultSelection, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 50)
@@ -856,7 +900,7 @@ function FluxUI:CreateDropdown(tab, name, items, multiSelect, defaultSelection, 
 	return container
 end
 
--- KEYBIND with icon
+-- =============================== KEYBIND (with icon) ===============================
 function FluxUI:CreateKeybind(tab, name, defaultKey, callback, iconId)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 44)
@@ -924,7 +968,7 @@ function FluxUI:CreateKeybind(tab, name, defaultKey, callback, iconId)
 	return container
 end
 
--- COLOR PICKER (with hex and rgb)
+-- =============================== COLOR PICKER (hex + RGB) ===============================
 function FluxUI:CreateColorPicker(tab, name, defaultColor, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 180)
@@ -1016,7 +1060,7 @@ function FluxUI:CreateColorPicker(tab, name, defaultColor, callback)
 	return container
 end
 
--- TEXTBOX with clear button
+-- =============================== TEXTBOX (with clear button) ===============================
 function FluxUI:CreateTextBox(tab, name, placeholder, callback, isNumberOnly)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 50)
@@ -1083,7 +1127,7 @@ function FluxUI:CreateNumberInput(tab, name, defaultValue, callback)
 	return self:CreateTextBox(tab, name, tostring(defaultValue), function(val) safeCall(callback, val) end, true)
 end
 
--- CHECKBOX
+-- =============================== CHECKBOX ===============================
 function FluxUI:CreateCheckbox(tab, name, defaultValue, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 38)
@@ -1113,7 +1157,7 @@ function FluxUI:CreateCheckbox(tab, name, defaultValue, callback)
 	self.flags[name] = state
 
 	local function updateUI()
-		boxBtn.Text = state and "V" or ""
+		boxBtn.Text = state and "✓" or ""
 		boxBtn.TextColor3 = state and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(120, 120, 130)
 		safeCall(callback, state)
 		self.flags[name] = state
@@ -1132,7 +1176,7 @@ function FluxUI:CreateCheckbox(tab, name, defaultValue, callback)
 	return container
 end
 
--- RADIO GROUP
+-- =============================== RADIO GROUP ===============================
 function FluxUI:CreateRadioGroup(tab, name, options, defaultOption, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 32 + #options * 34)
@@ -1195,7 +1239,7 @@ function FluxUI:CreateRadioGroup(tab, name, options, defaultOption, callback)
 	return container
 end
 
--- PROGRESS BAR
+-- =============================== PROGRESS BAR ===============================
 function FluxUI:CreateProgressBar(tab, labelText, maxValue)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 52)
@@ -1232,7 +1276,7 @@ function FluxUI:CreateProgressBar(tab, labelText, maxValue)
 	return {set = setProgress}
 end
 
--- SPINNER
+-- =============================== CIRCULAR SPINNER ===============================
 function FluxUI:CreateSpinner(tab, initiallyVisible)
 	local spinner = Instance.new("ImageLabel")
 	spinner.Image = "rbxassetid://6031281695"
@@ -1249,7 +1293,7 @@ function FluxUI:CreateSpinner(tab, initiallyVisible)
 	return {setVisible = setVisible}
 end
 
--- DIVIDER
+-- =============================== DIVIDER ===============================
 function FluxUI:CreateDivider(tab, text)
 	local line = Instance.new("Frame")
 	line.Size = UDim2.new(0.9, 0, 0, 2)
@@ -1270,7 +1314,7 @@ function FluxUI:CreateDivider(tab, text)
 	return line
 end
 
--- LABEL
+-- =============================== LABEL ===============================
 function FluxUI:CreateLabel(tab, text, fontSize, richText)
 	local label = Instance.new("TextLabel")
 	label.Text = text
@@ -1286,7 +1330,7 @@ function FluxUI:CreateLabel(tab, text, fontSize, richText)
 	return label
 end
 
--- PARAGRAPH
+-- =============================== PARAGRAPH ===============================
 function FluxUI:CreateParagraph(tab, text, richText)
 	local para = Instance.new("TextLabel")
 	para.Text = text
@@ -1303,7 +1347,7 @@ function FluxUI:CreateParagraph(tab, text, richText)
 	return para
 end
 
--- STATUS DOT
+-- =============================== STATUS DOT ===============================
 function FluxUI:CreateStatusDot(tab, labelText, initialActive)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 36)
@@ -1334,7 +1378,7 @@ function FluxUI:CreateStatusDot(tab, labelText, initialActive)
 	return {setActive = setActive}
 end
 
--- CLIPBOARD BUTTON
+-- =============================== CLIPBOARD BUTTON ===============================
 function FluxUI:CreateClipboardButton(tab, buttonText, copyText)
 	return self:CreateButton(tab, buttonText, function()
 		Clipboard(copyText)
@@ -1342,7 +1386,7 @@ function FluxUI:CreateClipboardButton(tab, buttonText, copyText)
 	end)
 end
 
--- NOTIFICATION TOAST
+-- =============================== NOTIFICATION TOAST ===============================
 function FluxUI:Notify(config)
 	local toast = Instance.new("Frame")
 	toast.Size = UDim2.new(0, 320, 0, 74)
@@ -1382,7 +1426,7 @@ function FluxUI:Notify(config)
 	toast:Destroy()
 end
 
--- THEME SWITCHER
+-- =============================== THEME SWITCHER ===============================
 function FluxUI:CreateThemeSwitcher(tab)
 	local btn = Instance.new("TextButton")
 	btn.Text = self.config.theme == "dark" and "Dark Theme" or "Light Theme"
@@ -1404,7 +1448,7 @@ function FluxUI:CreateThemeSwitcher(tab)
 	return btn
 end
 
--- KEYBIND HUD (overlay)
+-- =============================== KEYBIND HUD (draggable overlay) ===============================
 function FluxUI:CreateKeybindHUD()
 	local hud = Instance.new("Frame")
 	hud.Size = UDim2.new(0, 240, 0, 120)
@@ -1429,6 +1473,7 @@ function FluxUI:CreateKeybindHUD()
 	listLayout.Padding = UDim.new(0, 4)
 	listLayout.Parent = hud
 
+	-- Make HUD draggable
 	makeDraggable(hud, title, 0.2)
 end
 
@@ -1444,7 +1489,7 @@ function FluxUI:AddKeybindToHUD(name, key)
 	lbl.Parent = self.keybindHUD
 end
 
--- CONFIG SAVE/LOAD
+-- =============================== CONFIG SAVE / LOAD ===============================
 function FluxUI:SaveConfig()
 	if not self.config.saveKey then return end
 	local path = self.config.saveFolder .. "/" .. self.config.saveKey .. ".json"
@@ -1455,17 +1500,17 @@ function FluxUI:LoadConfig()
 	-- Already loaded in CreateWindow
 end
 
--- PLUGIN SUPPORT
+-- =============================== PLUGIN SUPPORT ===============================
 function FluxUI:RegisterPlugin(pluginFunc)
 	safeCall(pluginFunc, self)
 end
 
--- FLAG GETTER
+-- =============================== FLAG GETTER ===============================
 function FluxUI:GetFlag(name)
 	return self.flags[name]
 end
 
--- DESTROY / CLEANUP
+-- =============================== DESTROY / CLEANUP ===============================
 function FluxUI:Destroy()
 	for _, conn in ipairs(self.globalConnections) do
 		conn:Disconnect()
@@ -1473,7 +1518,7 @@ function FluxUI:Destroy()
 	if self.gui then self.gui:Destroy() end
 end
 
--- EXPORT
+-- =============================== EXPORT ===============================
 local function Init()
 	return FluxUI.new()
 end
