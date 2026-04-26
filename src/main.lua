@@ -2,9 +2,8 @@
 --[[
 	FluxUI - Advanced Roblox UI Library for Executors
 	Version: 8.0
-	Features: 150/150 (Core, Visuals, Components, Advanced UX)
 	Repository: https://github.com/KercX/FluxUI
-	Author: KercX / FluxDev
+	Author: KercX / 
 	License: MIT (watermark required)
 ]]
 local FluxUI = {}
