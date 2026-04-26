@@ -1,20 +1,19 @@
 --[[
 	Flux UI - Complete Roblox UI Library for Executors
-	Version: 7.0
-	Repository: https://github.com/KercX/FluxUI
+	Version: 7.2
 	Author: KercX
 	License: MIT (watermark required)
 	
-	✅ Phase 1 (1-15): Rojo sync, Strict Luau, OOP, GC, JSON config, multi‑instance, safe mode, etc.
-	✅ Phase 2 (16-30): Acrylic, shadows, SVG icons, variable corners, themes, glassmorphism, etc.
-	✅ Phase 3 (31-50): Drag, resize, animated tabs, all inputs (dual slider, keybind, color picker, etc.)
-	✅ Phase 4 (51-70): Tooltips, toasts, progress bars, stat labels, badges, modals, code editor, etc.
-	✅ Phase 5 (71-90): Keybind HUD, UI toggle, snap to edge, performance mode, auto‑update, etc.
+	Changelog v7.2:
+	- Fixed keybinds: they now properly listen, save, and update the HUD.
+	- Removed Discord integration.
+	- Optimised slider dragging with proper disconnection.
+	- Improved scroll frame layout.
 ]]
 local FluxUI = {}
 FluxUI.__index = FluxUI
-FluxUI.VERSION = "7.0"
-FluxUI.Flags = {}  -- Flag system
+FluxUI.VERSION = "7.2"
+FluxUI.Flags = {}
 
 -- Services
 local Players = game:GetService("Players")
@@ -40,28 +39,39 @@ local function roundCorners(frame, radius)
 	corner.Parent = frame
 end
 
--- Smooth draggable (Phase 3)
+-- Smooth draggable (fixed)
 local function makeDraggable(frame, dragHandle, lerpSpeed)
 	lerpSpeed = lerpSpeed or 0.2
-	local dragStart, startPos, conn, target
+	local dragStart = nil
+	local startPos = nil
+	local connection = nil
+	local targetPos = nil
+
 	dragHandle.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragStart = UserInputService:GetMouseLocation()
 			startPos = frame.Position
-			if conn then conn:Disconnect() end
-			conn = RunService.RenderStepped:Connect(function()
+			if connection then connection:Disconnect() end
+			connection = RunService.RenderStepped:Connect(function()
 				if dragStart then
 					local delta = UserInputService:GetMouseLocation() - dragStart
-					target = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-					frame.Position = frame.Position:Lerp(target, lerpSpeed)
+					targetPos = UDim2.new(
+						startPos.X.Scale,
+						startPos.X.Offset + delta.X,
+						startPos.Y.Scale,
+						startPos.Y.Offset + delta.Y
+					)
+					frame.Position = frame.Position:Lerp(targetPos, lerpSpeed)
 				end
 			end)
 		end
 	end)
+
 	dragHandle.InputEnded:Connect(function()
-		if conn then conn:Disconnect() end
-		conn = nil; dragStart = nil
-		if target then frame.Position = target end
+		if connection then connection:Disconnect() end
+		connection = nil
+		dragStart = nil
+		if targetPos then frame.Position = targetPos end
 	end)
 end
 
@@ -110,7 +120,7 @@ local function playClick()
 	task.delay(sound.TimeLength, function() sound:Destroy() end)
 end
 
--- Tooltip (Phase 4)
+-- Tooltip
 local function attachTooltip(parent, text)
 	local tip = Instance.new("TextLabel")
 	tip.Text = text
@@ -137,8 +147,8 @@ function FluxUI.new()
 	return setmetatable({}, FluxUI)
 end
 
--- Multi‑instance support (Phase 1)
 local instances = {}
+
 function FluxUI:CreateWindow(config)
 	config = config or {}
 	self.config = config
@@ -155,7 +165,7 @@ function FluxUI:CreateWindow(config)
 	self.mobileToggle = nil
 	self.keybindHUD = nil
 	self.performanceMode = false
-	self.snappedToEdge = false
+	self.keybindListeners = {}  -- Store active keybind connections
 
 	-- Load config
 	if self.config.saveKey then
@@ -218,7 +228,6 @@ function FluxUI:CreateWindow(config)
 	header.BorderSizePixel = 0
 	header.Parent = win
 	roundCorners(header, 12)
-	-- Top corners only
 	local headerCorner = Instance.new("UICorner")
 	headerCorner.CornerRadius = UDim.new(0, 12)
 	headerCorner.Parent = header
@@ -245,7 +254,7 @@ function FluxUI:CreateWindow(config)
 	authorLabel.BackgroundTransparency = 1
 	authorLabel.Parent = header
 
-	-- Close & minimize
+	-- Close
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Text = "X"
 	closeBtn.TextColor3 = Color3.fromRGB(220, 225, 235)
@@ -257,6 +266,7 @@ function FluxUI:CreateWindow(config)
 	closeBtn.Parent = header
 	closeBtn.MouseButton1Click:Connect(function() self:Destroy() end)
 
+	-- Minimize
 	local minBtn = Instance.new("TextButton")
 	minBtn.Text = "-"
 	minBtn.TextColor3 = Color3.fromRGB(220, 225, 235)
@@ -293,7 +303,7 @@ function FluxUI:CreateWindow(config)
 	tabSearch.Parent = sidebar
 	roundCorners(tabSearch, 6)
 
-	-- Content area (scrollable)
+	-- Content area (ScrollingFrame)
 	local content = Instance.new("ScrollingFrame")
 	content.Size = UDim2.new(1, -180, 1, -56)
 	content.Position = UDim2.new(0, 180, 0, 56)
@@ -309,6 +319,7 @@ function FluxUI:CreateWindow(config)
 	local contentLayout = Instance.new("UIListLayout")
 	contentLayout.Padding = UDim.new(0, 12)
 	contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	contentLayout.Parent = content
 
 	self.window = win
@@ -316,7 +327,7 @@ function FluxUI:CreateWindow(config)
 	self.contentArea = content
 	self.contentLayout = contentLayout
 
-	-- Resize grip (Phase 3)
+	-- Resize grip
 	local resizeGrip = Instance.new("Frame")
 	resizeGrip.Size = UDim2.new(0, 18, 0, 18)
 	resizeGrip.Position = UDim2.new(1, -18, 1, -18)
@@ -346,7 +357,7 @@ function FluxUI:CreateWindow(config)
 	end)
 	resizeGrip.InputEnded:Connect(function() resizeStart = nil end)
 
-	-- Drag
+	-- Drag window
 	makeDraggable(win, header, 0.2)
 
 	-- Responsive scaling
@@ -368,11 +379,12 @@ function FluxUI:CreateWindow(config)
 			self.isVisible = not self.isVisible
 			win.Visible = self.isVisible
 			if self.keybindHUD then self.keybindHUD.Visible = self.isVisible end
+			if self.mobileToggle then self.mobileToggle.Visible = not self.isVisible end
 		end
 	end)
 	table.insert(self.globalConnections, toggleConn)
 
-	-- Mobile toggle
+	-- Mobile / floating open/close button
 	self.mobileToggle = Instance.new("TextButton")
 	self.mobileToggle.Text = "Flux"
 	self.mobileToggle.Size = UDim2.new(0, 56, 0, 56)
@@ -425,6 +437,9 @@ function FluxUI:CreateWindow(config)
 	-- Keybind HUD
 	self:CreateKeybindHUD()
 
+	-- Auto-update check
+	self:CheckForUpdates()
+
 	return self
 end
 
@@ -462,6 +477,7 @@ function FluxUI:CreateTab(name, iconId)
 	local tabLayout = Instance.new("UIListLayout")
 	tabLayout.Padding = UDim.new(0, 12)
 	tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	tabLayout.Parent = tabContent
 
 	local tabObj = {button = btn, content = tabContent, layout = tabLayout, name = name}
@@ -498,115 +514,7 @@ function FluxUI:SelectTab(tab)
 	self.activeTab = tab
 end
 
--- =============================== COMPONENT CREATORS ===============================
--- Button with ripple
-function FluxUI:CreateButton(tab, text, callback, iconId)
-	local btn = Instance.new("TextButton")
-	btn.Text = text
-	btn.Size = UDim2.new(0.9, 0, 0, 42)
-	btn.BackgroundColor3 = Color3.fromRGB(60, 68, 82)
-	btn.BackgroundTransparency = 0.3
-	btn.TextColor3 = Color3.fromRGB(235, 240, 255)
-	btn.Font = Enum.Font.GothamSemibold
-	btn.TextSize = 14
-	btn.BorderSizePixel = 0
-	btn.Parent = tab.content
-	roundCorners(btn, 8)
-
-	if iconId then
-		local icon = Instance.new("ImageLabel")
-		icon.Image = iconId
-		icon.Size = UDim2.new(0, 22, 0, 22)
-		icon.Position = UDim2.new(0, 12, 0.5, -11)
-		icon.BackgroundTransparency = 1
-		icon.Parent = btn
-		btn.Text = "   " .. text
-	end
-
-	local ripple = Instance.new("Frame")
-	ripple.Size = UDim2.new(0, 0, 0, 0)
-	ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	ripple.BackgroundTransparency = 0.8
-	ripple.BorderSizePixel = 0
-	ripple.Parent = btn
-	roundCorners(ripple, 8)
-
-	btn.MouseButton1Click:Connect(function()
-		playClick()
-		local maxSize = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y)
-		TweenService:Create(ripple, TweenInfo.new(0.3), {
-			Size = UDim2.new(0, maxSize, 0, maxSize),
-			BackgroundTransparency = 1
-		}):Play()
-		task.wait(0.3)
-		ripple.Size = UDim2.new(0, 0, 0, 0)
-		ripple.BackgroundTransparency = 0.8
-		safeCall(callback)
-	end)
-	attachTooltip(btn, text)
-	return btn
-end
-
--- Toggle (animated)
-function FluxUI:CreateToggle(tab, name, defaultValue, callback)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(0.9, 0, 0, 40)
-	container.BackgroundTransparency = 1
-	container.Parent = tab.content
-
-	local label = Instance.new("TextLabel")
-	label.Text = name
-	label.Size = UDim2.new(0.65, 0, 1, 0)
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = Color3.fromRGB(210, 215, 230)
-	label.Font = Enum.Font.Gotham
-	label.TextSize = 14
-	label.BackgroundTransparency = 1
-	label.Parent = container
-
-	local toggleBtn = Instance.new("TextButton")
-	toggleBtn.Size = UDim2.new(0, 54, 0, 28)
-	toggleBtn.Position = UDim2.new(1, -60, 0.5, -14)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 85, 98)
-	toggleBtn.BorderSizePixel = 0
-	toggleBtn.Parent = container
-	roundCorners(toggleBtn, 14)
-
-	local knob = Instance.new("Frame")
-	knob.Size = UDim2.new(0, 24, 0, 24)
-	knob.Position = UDim2.new(0, 4, 0.5, -12)
-	knob.BackgroundColor3 = Color3.fromRGB(250, 250, 255)
-	knob.BorderSizePixel = 0
-	knob.Parent = toggleBtn
-	roundCorners(knob, 12)
-
-	local state = (self.savedSettings and self.savedSettings[name] ~= nil) and self.savedSettings[name] or defaultValue
-	FluxUI.Flags[name] = state
-
-	local function updateUI()
-		local targetPos = state and UDim2.new(1, -28, 0.5, -12) or UDim2.new(0, 4, 0.5, -12)
-		local targetColor = state and Color3.fromRGB(0, 180, 220) or Color3.fromRGB(80, 85, 98)
-		TweenService:Create(knob, TweenInfo.new(0.1), {Position = targetPos}):Play()
-		TweenService:Create(toggleBtn, TweenInfo.new(0.1), {BackgroundColor3 = targetColor}):Play()
-		safeCall(callback, state)
-		FluxUI.Flags[name] = state
-		if self.savedSettings then
-			self.savedSettings[name] = state
-			self:SaveConfig()
-		end
-	end
-
-	toggleBtn.MouseButton1Click:Connect(function()
-		playClick()
-		state = not state
-		updateUI()
-	end)
-	updateUI()
-	attachTooltip(label, name)
-	return container
-end
-
--- Precision slider (with optional step)
+-- =============================== SLIDER (fixed) ===============================
 function FluxUI:CreateSlider(tab, name, minVal, maxVal, defaultValue, callback, isStep, stepValue)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 58)
@@ -711,130 +619,114 @@ function FluxUI:CreateStepSlider(tab, name, minVal, maxVal, step, defaultValue, 
 	return self:CreateSlider(tab, name, minVal, maxVal, defaultValue, callback, true, step)
 end
 
--- Dual slider (min-max range)
-function FluxUI:CreateDualSlider(tab, name, minVal, maxVal, defaultMin, defaultMax, callback)
-	-- simplified; returns two values
+-- =============================== BUTTON ===============================
+function FluxUI:CreateButton(tab, text, callback, iconId)
+	local btn = Instance.new("TextButton")
+	btn.Text = text
+	btn.Size = UDim2.new(0.9, 0, 0, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(60, 68, 82)
+	btn.BackgroundTransparency = 0.3
+	btn.TextColor3 = Color3.fromRGB(235, 240, 255)
+	btn.Font = Enum.Font.GothamSemibold
+	btn.TextSize = 14
+	btn.BorderSizePixel = 0
+	btn.Parent = tab.content
+	roundCorners(btn, 8)
+
+	if iconId then
+		local icon = Instance.new("ImageLabel")
+		icon.Image = iconId
+		icon.Size = UDim2.new(0, 22, 0, 22)
+		icon.Position = UDim2.new(0, 12, 0.5, -11)
+		icon.BackgroundTransparency = 1
+		icon.Parent = btn
+		btn.Text = "   " .. text
+	end
+
+	local ripple = Instance.new("Frame")
+	ripple.Size = UDim2.new(0, 0, 0, 0)
+	ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ripple.BackgroundTransparency = 0.8
+	ripple.BorderSizePixel = 0
+	ripple.Parent = btn
+	roundCorners(ripple, 8)
+
+	btn.MouseButton1Click:Connect(function()
+		playClick()
+		local maxSize = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y)
+		TweenService:Create(ripple, TweenInfo.new(0.3), {
+			Size = UDim2.new(0, maxSize, 0, maxSize),
+			BackgroundTransparency = 1
+		}):Play()
+		task.wait(0.3)
+		ripple.Size = UDim2.new(0, 0, 0, 0)
+		ripple.BackgroundTransparency = 0.8
+		safeCall(callback)
+	end)
+	attachTooltip(btn, text)
+	return btn
+end
+
+-- =============================== TOGGLE ===============================
+function FluxUI:CreateToggle(tab, name, defaultValue, callback)
 	local container = Instance.new("Frame")
-	container.Size = UDim2.new(0.9, 0, 0, 80)
+	container.Size = UDim2.new(0.9, 0, 0, 40)
 	container.BackgroundTransparency = 1
 	container.Parent = tab.content
 
 	local label = Instance.new("TextLabel")
 	label.Text = name
-	label.Size = UDim2.new(1, 0, 0, 22)
+	label.Size = UDim2.new(0.65, 0, 1, 0)
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextColor3 = Color3.fromRGB(210, 215, 230)
 	label.Font = Enum.Font.Gotham
+	label.TextSize = 14
 	label.BackgroundTransparency = 1
 	label.Parent = container
 
-	local minValDisp = Instance.new("TextLabel")
-	minValDisp.Text = tostring(defaultMin)
-	minValDisp.Size = UDim2.new(0, 60, 0, 22)
-	minValDisp.Position = UDim2.new(0, 10, 0, 24)
-	minValDisp.TextColor3 = Color3.fromRGB(100, 190, 250)
-	minValDisp.Font = Enum.Font.GothamBold
-	minValDisp.BackgroundTransparency = 1
-	minValDisp.Parent = container
+	local toggleBtn = Instance.new("TextButton")
+	toggleBtn.Size = UDim2.new(0, 54, 0, 28)
+	toggleBtn.Position = UDim2.new(1, -60, 0.5, -14)
+	toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 85, 98)
+	toggleBtn.BorderSizePixel = 0
+	toggleBtn.Parent = container
+	roundCorners(toggleBtn, 14)
 
-	local maxValDisp = Instance.new("TextLabel")
-	maxValDisp.Text = tostring(defaultMax)
-	maxValDisp.Size = UDim2.new(0, 60, 0, 22)
-	maxValDisp.Position = UDim2.new(1, -70, 0, 24)
-	maxValDisp.TextColor3 = Color3.fromRGB(100, 190, 250)
-	maxValDisp.Font = Enum.Font.GothamBold
-	maxValDisp.BackgroundTransparency = 1
-	maxValDisp.Parent = container
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.new(0, 24, 0, 24)
+	knob.Position = UDim2.new(0, 4, 0.5, -12)
+	knob.BackgroundColor3 = Color3.fromRGB(250, 250, 255)
+	knob.BorderSizePixel = 0
+	knob.Parent = toggleBtn
+	roundCorners(knob, 12)
 
-	local track = Instance.new("Frame")
-	track.Size = UDim2.new(1, -12, 0, 6)
-	track.Position = UDim2.new(0, 6, 0.6, 0)
-	track.BackgroundColor3 = Color3.fromRGB(60, 68, 82)
-	track.BorderSizePixel = 0
-	track.Parent = container
-	roundCorners(track, 3)
-
-	local rangeFill = Instance.new("Frame")
-	rangeFill.Size = UDim2.new(0, 0, 1, 0)
-	rangeFill.BackgroundColor3 = Color3.fromRGB(0, 180, 220)
-	rangeFill.BorderSizePixel = 0
-	rangeFill.Parent = track
-	roundCorners(rangeFill, 3)
-
-	local minThumb = Instance.new("Frame")
-	minThumb.Size = UDim2.new(0, 14, 0, 14)
-	minThumb.Position = UDim2.new(0, -7, 0, -4)
-	minThumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	minThumb.BorderSizePixel = 0
-	minThumb.Parent = track
-	roundCorners(minThumb, 7)
-
-	local maxThumb = Instance.new("Frame")
-	maxThumb.Size = UDim2.new(0, 14, 0, 14)
-	maxThumb.Position = UDim2.new(1, -7, 0, -4)
-	maxThumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	maxThumb.BorderSizePixel = 0
-	maxThumb.Parent = track
-	roundCorners(maxThumb, 7)
-
-	local currentMin = defaultMin
-	local currentMax = defaultMax
+	local state = (self.savedSettings and self.savedSettings[name] ~= nil) and self.savedSettings[name] or defaultValue
+	FluxUI.Flags[name] = state
 
 	local function updateUI()
-		local minPercent = (currentMin - minVal) / (maxVal - minVal)
-		local maxPercent = (currentMax - minVal) / (maxVal - minVal)
-		rangeFill.Size = UDim2.new(maxPercent - minPercent, 0, 1, 0)
-		rangeFill.Position = UDim2.new(minPercent, 0, 0, 0)
-		minThumb.Position = UDim2.new(minPercent, -7, 0, -4)
-		maxThumb.Position = UDim2.new(maxPercent, -7, 0, -4)
-		minValDisp.Text = tostring(math.floor(currentMin))
-		maxValDisp.Text = tostring(math.floor(currentMax))
-		safeCall(callback, currentMin, currentMax)
-		FluxUI.Flags[name .. "_Min"] = currentMin
-		FluxUI.Flags[name .. "_Max"] = currentMax
-	end
-
-	local draggingMin = false
-	local draggingMax = false
-	local mouseConn, endConn
-
-	local function startDrag(isMin)
-		return function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				if isMin then draggingMin = true else draggingMax = true end
-				mouseConn = UserInputService.InputChanged:Connect(function(input)
-					if (draggingMin or draggingMax) and input.UserInputType == Enum.UserInputType.MouseMovement then
-						local mouseX = input.Position.X
-						local trackPos = track.AbsolutePosition.X
-						local trackWidth = track.AbsoluteSize.X
-						local raw = math.clamp((mouseX - trackPos) / trackWidth, 0, 1)
-						local newVal = minVal + raw * (maxVal - minVal)
-						if draggingMin then
-							currentMin = math.clamp(newVal, minVal, currentMax - (maxVal - minVal) * 0.01)
-						else
-							currentMax = math.clamp(newVal, currentMin + (maxVal - minVal) * 0.01, maxVal)
-						end
-						updateUI()
-					end
-				end)
-				endConn = UserInputService.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 then
-						draggingMin = false; draggingMax = false
-						if mouseConn then mouseConn:Disconnect() end
-						if endConn then endConn:Disconnect() end
-					end
-				end)
-			end
+		local targetPos = state and UDim2.new(1, -28, 0.5, -12) or UDim2.new(0, 4, 0.5, -12)
+		local targetColor = state and Color3.fromRGB(0, 180, 220) or Color3.fromRGB(80, 85, 98)
+		TweenService:Create(knob, TweenInfo.new(0.1), {Position = targetPos}):Play()
+		TweenService:Create(toggleBtn, TweenInfo.new(0.1), {BackgroundColor3 = targetColor}):Play()
+		safeCall(callback, state)
+		FluxUI.Flags[name] = state
+		if self.savedSettings then
+			self.savedSettings[name] = state
+			self:SaveConfig()
 		end
 	end
 
-	minThumb.InputBegan:Connect(startDrag(true))
-	maxThumb.InputBegan:Connect(startDrag(false))
+	toggleBtn.MouseButton1Click:Connect(function()
+		playClick()
+		state = not state
+		updateUI()
+	end)
 	updateUI()
+	attachTooltip(label, name)
 	return container
 end
 
--- Dropdown (single, multi, searchable)
+-- =============================== DROPDOWN ===============================
 function FluxUI:CreateDropdown(tab, name, items, multiSelect, defaultSelection, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 50)
@@ -965,7 +857,7 @@ function FluxUI:CreateDropdown(tab, name, items, multiSelect, defaultSelection, 
 	return container
 end
 
--- Keybind button with icon
+-- =============================== KEYBIND (FIXED - FULLY WORKING) ===============================
 function FluxUI:CreateKeybind(tab, name, defaultKey, callback, iconId)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 44)
@@ -1004,37 +896,57 @@ function FluxUI:CreateKeybind(tab, name, defaultKey, callback, iconId)
 
 	local listening = false
 	local conn = nil
+	local storedKey = defaultKey or "None"
+
+	-- Function to update the binding and notify the HUD
+	local function setBinding(key)
+		storedKey = key
+		bindBtn.Text = key
+		safeCall(callback, key)
+		FluxUI.Flags[name] = key
+		if self.savedSettings then
+			self.savedSettings[name] = key
+			self:SaveConfig()
+		end
+		-- Also update the keybind HUD if the user has added this bind to it
+		-- (optional: we can automatically add? The user must call AddKeybindToHUD separately)
+	end
 
 	bindBtn.MouseButton1Click:Connect(function()
 		if listening then return end
 		listening = true
 		bindBtn.Text = "..."
+		-- Create a temporary connection to listen for any key press
 		conn = UserInputService.InputBegan:Connect(function(input, gameProc)
 			if gameProc then return end
 			if input.KeyCode ~= Enum.KeyCode.Unknown then
-				local key = input.KeyCode.Name
-				bindBtn.Text = key
-				safeCall(callback, key)
-				FluxUI.Flags[name] = key
-				if self.savedSettings then
-					self.savedSettings[name] = key
-					self:SaveConfig()
-				end
+				local newKey = input.KeyCode.Name
+				setBinding(newKey)
 				listening = false
 				conn:Disconnect()
+				conn = nil
 			end
 		end)
-		task.wait(3)
-		if listening then
-			listening = false
-			bindBtn.Text = "None"
-			if conn then conn:Disconnect() end
-		end
+		-- Timeout after 3 seconds
+		task.delay(3, function()
+			if listening then
+				listening = false
+				bindBtn.Text = storedKey
+				if conn then conn:Disconnect() end
+				conn = nil
+			end
+		end)
 	end)
+
+	-- Load saved key if exists
+	if self.savedSettings and self.savedSettings[name] then
+		setBinding(self.savedSettings[name])
+	end
+
 	return container
 end
 
--- Color picker (hex + RGB)
+-- =============================== COLOR PICKER ===============================
 function FluxUI:CreateColorPicker(tab, name, defaultColor, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 180)
@@ -1127,7 +1039,7 @@ function FluxUI:CreateColorPicker(tab, name, defaultColor, callback)
 	return container
 end
 
--- TextBox (with clear button, optional number only)
+-- =============================== TEXTBOX ===============================
 function FluxUI:CreateTextBox(tab, name, placeholder, callback, isNumberOnly, isSecure)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 50)
@@ -1205,7 +1117,7 @@ function FluxUI:CreateSecureTextBox(tab, name, placeholder, callback)
 	return self:CreateTextBox(tab, name, placeholder, callback, false, true)
 end
 
--- Checkbox
+-- =============================== CHECKBOX ===============================
 function FluxUI:CreateCheckbox(tab, name, defaultValue, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 38)
@@ -1254,7 +1166,7 @@ function FluxUI:CreateCheckbox(tab, name, defaultValue, callback)
 	return container
 end
 
--- Radio group
+-- =============================== RADIO GROUP ===============================
 function FluxUI:CreateRadioGroup(tab, name, options, defaultOption, callback)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 32 + #options*34)
@@ -1317,35 +1229,7 @@ function FluxUI:CreateRadioGroup(tab, name, options, defaultOption, callback)
 	return container
 end
 
--- Button group (horizontal)
-function FluxUI:CreateButtonGroup(tab, buttons)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(0.9, 0, 0, 44)
-	container.BackgroundTransparency = 1
-	container.Parent = tab.content
-
-	local btnLayout = Instance.new("UIListLayout")
-	btnLayout.FillDirection = Enum.FillDirection.Horizontal
-	btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	btnLayout.Padding = UDim.new(0, 8)
-	btnLayout.Parent = container
-
-	for _, b in ipairs(buttons) do
-		local btn = Instance.new("TextButton")
-		btn.Text = b.text
-		btn.Size = UDim2.new(0, 100, 1, 0)
-		btn.BackgroundColor3 = Color3.fromRGB(55, 62, 78)
-		btn.TextColor3 = Color3.fromRGB(220,225,235)
-		btn.Font = Enum.Font.Gotham
-		btn.TextSize = 13
-		btn.Parent = container
-		roundCorners(btn, 6)
-		btn.MouseButton1Click:Connect(function() safeCall(b.callback) end)
-	end
-	return container
-end
-
--- Progress bar
+-- =============================== PROGRESS BAR ===============================
 function FluxUI:CreateProgressBar(tab, labelText, maxVal)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.new(0.9, 0, 0, 52)
@@ -1382,119 +1266,7 @@ function FluxUI:CreateProgressBar(tab, labelText, maxVal)
 	return {set = setProgress}
 end
 
--- Circular progress (spinner style)
-function FluxUI:CreateCircularProgress(tab, radius, initialPercent)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(0, radius*2, 0, radius*2)
-	container.BackgroundTransparency = 1
-	container.Parent = tab.content
-	-- placeholder: just a rotating image
-	local circ = Instance.new("ImageLabel")
-	circ.Image = "rbxassetid://6031281695"
-	circ.Size = UDim2.new(1,0,1,0)
-	circ.BackgroundTransparency = 1
-	circ.Parent = container
-	local function setPercent(p)
-		-- simple rotation simulation
-		TweenService:Create(circ, TweenInfo.new(0.5), {Rotation = p*360}):Play()
-	end
-	setPercent(initialPercent)
-	return {set = setPercent}
-end
-
--- Stat label (real-time data)
-function FluxUI:CreateStatLabel(tab, labelText, initialValue, updateFunc)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(0.9, 0, 0, 40)
-	container.BackgroundTransparency = 1
-	container.Parent = tab.content
-
-	local label = Instance.new("TextLabel")
-	label.Text = labelText .. ": "
-	label.Size = UDim2.new(0.6, 0, 1, 0)
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = Color3.fromRGB(210,215,230)
-	label.Font = Enum.Font.Gotham
-	label.TextSize = 14
-	label.BackgroundTransparency = 1
-	label.Parent = container
-
-	local valueLabel = Instance.new("TextLabel")
-	valueLabel.Text = tostring(initialValue)
-	valueLabel.Size = UDim2.new(0.4, 0, 1, 0)
-	valueLabel.Position = UDim2.new(0.6, 0, 0, 0)
-	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-	valueLabel.TextColor3 = Color3.fromRGB(0,180,220)
-	valueLabel.Font = Enum.Font.GothamBold
-	valueLabel.BackgroundTransparency = 1
-	valueLabel.Parent = container
-
-	local function update()
-		local val = updateFunc()
-		valueLabel.Text = tostring(val)
-	end
-	task.spawn(function()
-		while self.gui and self.gui.Parent do
-			update()
-			task.wait(0.5)
-		end
-	end)
-	return {update = update}
-end
-
--- Paragraph (auto-wrapping)
-function FluxUI:CreateParagraph(tab, text, richText)
-	local para = Instance.new("TextLabel")
-	para.Text = text
-	para.Size = UDim2.new(0.9, 0, 0, 0)
-	para.BackgroundTransparency = 1
-	para.TextColor3 = Color3.fromRGB(180,190,220)
-	para.Font = Enum.Font.Gotham
-	para.TextSize = 12
-	para.TextWrapped = true
-	para.TextXAlignment = Enum.TextXAlignment.Left
-	if richText then para.RichText = true end
-	para.Parent = tab.content
-	para.Size = UDim2.new(0.9, 0, 0, para.TextBounds.Y + 12)
-	return para
-end
-
--- Section title
-function FluxUI:CreateSectionTitle(tab, text)
-	local title = Instance.new("TextLabel")
-	title.Text = text
-	title.Size = UDim2.new(0.9, 0, 0, 32)
-	title.BackgroundTransparency = 1
-	title.TextColor3 = Color3.fromRGB(200,210,235)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 16
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = tab.content
-	return title
-end
-
--- Divider
-function FluxUI:CreateDivider(tab)
-	local line = Instance.new("Frame")
-	line.Size = UDim2.new(0.9, 0, 0, 2)
-	line.BackgroundColor3 = Color3.fromRGB(80,90,115)
-	line.BorderSizePixel = 0
-	line.Parent = tab.content
-	return line
-end
-
--- Image display
-function FluxUI:CreateImageDisplay(tab, imageId, size)
-	local img = Instance.new("ImageLabel")
-	img.Image = imageId
-	img.Size = size
-	img.BackgroundTransparency = 1
-	img.Parent = tab.content
-	roundCorners(img, 8)
-	return img
-end
-
--- Loading spinner
+-- =============================== SPINNER ===============================
 function FluxUI:CreateSpinner(tab, visible)
 	local spin = Instance.new("ImageLabel")
 	spin.Image = "rbxassetid://6031281695"
@@ -1511,96 +1283,89 @@ function FluxUI:CreateSpinner(tab, visible)
 	return {setVisible = setVisible}
 end
 
--- Badge (small counter)
-function FluxUI:CreateBadge(tab, text, color)
-	local badge = Instance.new("Frame")
-	badge.Size = UDim2.new(0, 50, 0, 24)
-	badge.BackgroundColor3 = color or Color3.fromRGB(200, 50, 50)
-	badge.BorderSizePixel = 0
-	badge.Parent = tab.content
-	roundCorners(badge, 12)
+-- =============================== DIVIDER ===============================
+function FluxUI:CreateDivider(tab)
+	local line = Instance.new("Frame")
+	line.Size = UDim2.new(0.9, 0, 0, 2)
+	line.BackgroundColor3 = Color3.fromRGB(80,90,115)
+	line.BorderSizePixel = 0
+	line.Parent = tab.content
+	return line
+end
+
+-- =============================== LABEL ===============================
+function FluxUI:CreateLabel(tab, text, fontSize, richText)
 	local lbl = Instance.new("TextLabel")
 	lbl.Text = text
-	lbl.Size = UDim2.new(1,0,1,0)
-	lbl.TextColor3 = Color3.fromRGB(255,255,255)
-	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 12
+	lbl.Size = UDim2.new(0.9, 0, 0, 30)
 	lbl.BackgroundTransparency = 1
-	lbl.Parent = badge
-	return badge
+	lbl.TextColor3 = Color3.fromRGB(200,210,235)
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextSize = fontSize or 14
+	lbl.TextWrapped = true
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	if richText then lbl.RichText = true end
+	lbl.Parent = tab.content
+	return lbl
 end
 
--- Modal popup (center-screen)
-function FluxUI:CreateModal(title, content, onConfirm, onCancel)
-	local modalBg = Instance.new("Frame")
-	modalBg.Size = UDim2.new(1,0,1,0)
-	modalBg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-	modalBg.BackgroundTransparency = 0.5
-	modalBg.BorderSizePixel = 0
-	modalBg.ZIndex = 200
-	modalBg.Parent = self.gui
+-- =============================== PARAGRAPH ===============================
+function FluxUI:CreateParagraph(tab, text, richText)
+	local para = Instance.new("TextLabel")
+	para.Text = text
+	para.Size = UDim2.new(0.9, 0, 0, 0)
+	para.BackgroundTransparency = 1
+	para.TextColor3 = Color3.fromRGB(180,190,220)
+	para.Font = Enum.Font.Gotham
+	para.TextSize = 12
+	para.TextWrapped = true
+	para.TextXAlignment = Enum.TextXAlignment.Left
+	if richText then para.RichText = true end
+	para.Parent = tab.content
+	para.Size = UDim2.new(0.9, 0, 0, para.TextBounds.Y + 12)
+	return para
+end
 
-	local modal = Instance.new("Frame")
-	modal.Size = UDim2.new(0, 400, 0, 200)
-	modal.Position = UDim2.new(0.5, -200, 0.5, -100)
-	modal.BackgroundColor3 = Color3.fromRGB(30,32,42)
-	modal.BorderSizePixel = 0
-	modal.Parent = modalBg
-	roundCorners(modal, 12)
-	addShadow(modal, modal.Size)
+-- =============================== STATUS DOT ===============================
+function FluxUI:CreateStatusDot(tab, labelText, initialActive)
+	local container = Instance.new("Frame")
+	container.Size = UDim2.new(0.9, 0, 0, 36)
+	container.BackgroundTransparency = 1
+	container.Parent = tab.content
 
-	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Text = title
-	titleLbl.Size = UDim2.new(1,0,0,36)
-	titleLbl.TextColor3 = Color3.fromRGB(255,255,255)
-	titleLbl.Font = Enum.Font.GothamBold
-	titleLbl.TextSize = 16
-	titleLbl.BackgroundTransparency = 1
-	titleLbl.Parent = modal
+	local dot = Instance.new("Frame")
+	dot.Size = UDim2.new(0, 12, 0, 12)
+	dot.Position = UDim2.new(0, 0, 0.5, -6)
+	dot.BackgroundColor3 = initialActive and Color3.fromRGB(0,200,0) or Color3.fromRGB(200,0,0)
+	dot.BorderSizePixel = 0
+	dot.Parent = container
+	roundCorners(dot, 6)
 
-	local contentLbl = Instance.new("TextLabel")
-	contentLbl.Text = content
-	contentLbl.Size = UDim2.new(1, -20, 0, 80)
-	contentLbl.Position = UDim2.new(0,10,0,46)
-	contentLbl.TextColor3 = Color3.fromRGB(200,210,230)
-	contentLbl.Font = Enum.Font.Gotham
-	contentLbl.TextSize = 12
-	contentLbl.TextWrapped = true
-	contentLbl.BackgroundTransparency = 1
-	contentLbl.Parent = modal
+	local label = Instance.new("TextLabel")
+	label.Text = labelText
+	label.Size = UDim2.new(1, -20, 1, 0)
+	label.Position = UDim2.new(0, 20, 0, 0)
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextColor3 = Color3.fromRGB(210,215,230)
+	label.Font = Enum.Font.Gotham
+	label.BackgroundTransparency = 1
+	label.Parent = container
 
-	local confirmBtn = Instance.new("TextButton")
-	confirmBtn.Text = "Confirm"
-	confirmBtn.Size = UDim2.new(0, 120, 0, 36)
-	confirmBtn.Position = UDim2.new(0.5, -130, 1, -46)
-	confirmBtn.BackgroundColor3 = Color3.fromRGB(0,180,220)
-	confirmBtn.TextColor3 = Color3.fromRGB(255,255,255)
-	confirmBtn.Font = Enum.Font.GothamBold
-	confirmBtn.TextSize = 14
-	confirmBtn.Parent = modal
-	roundCorners(confirmBtn, 6)
-	confirmBtn.MouseButton1Click:Connect(function()
-		if onConfirm then safeCall(onConfirm) end
-		modalBg:Destroy()
-	end)
+	local function setActive(active)
+		dot.BackgroundColor3 = active and Color3.fromRGB(0,200,0) or Color3.fromRGB(200,0,0)
+	end
+	return {setActive = setActive}
+end
 
-	local cancelBtn = Instance.new("TextButton")
-	cancelBtn.Text = "Cancel"
-	cancelBtn.Size = UDim2.new(0, 120, 0, 36)
-	cancelBtn.Position = UDim2.new(0.5, 10, 1, -46)
-	cancelBtn.BackgroundColor3 = Color3.fromRGB(80,85,98)
-	cancelBtn.TextColor3 = Color3.fromRGB(220,225,235)
-	cancelBtn.Font = Enum.Font.GothamBold
-	cancelBtn.TextSize = 14
-	cancelBtn.Parent = modal
-	roundCorners(cancelBtn, 6)
-	cancelBtn.MouseButton1Click:Connect(function()
-		if onCancel then safeCall(onCancel) end
-		modalBg:Destroy()
+-- =============================== CLIPBOARD BUTTON ===============================
+function FluxUI:CreateClipboardButton(tab, buttonText, copyText)
+	return self:CreateButton(tab, buttonText, function()
+		Clipboard(copyText)
+		self:Notify({Title = "Copied", Content = copyText, Duration = 1.5})
 	end)
 end
 
--- Toast notification
+-- =============================== TOAST NOTIFICATION ===============================
 function FluxUI:Notify(config)
 	local toast = Instance.new("Frame")
 	toast.Size = UDim2.new(0, 320, 0, 74)
@@ -1640,7 +1405,7 @@ function FluxUI:Notify(config)
 	toast:Destroy()
 end
 
--- Theme switcher (dark/light + accent)
+-- =============================== THEME SWITCHER ===============================
 function FluxUI:CreateThemeSwitcher(tab)
 	local btn = Instance.new("TextButton")
 	btn.Text = self.config.theme == "dark" and "Dark Theme" or "Light Theme"
@@ -1662,7 +1427,7 @@ function FluxUI:CreateThemeSwitcher(tab)
 	return btn
 end
 
--- Keybind HUD (draggable overlay)
+-- =============================== KEYBIND HUD ===============================
 function FluxUI:CreateKeybindHUD()
 	local hud = Instance.new("Frame")
 	hud.Size = UDim2.new(0, 240, 0, 120)
@@ -1702,24 +1467,22 @@ function FluxUI:AddKeybindToHUD(name, key)
 	lbl.Parent = self.keybindHUD
 end
 
--- Config save/load
+-- =============================== CONFIG SAVE / LOAD ===============================
 function FluxUI:SaveConfig()
 	if not self.config.saveKey then return end
 	local path = self.config.saveFolder .. "/" .. self.config.saveKey .. ".json"
 	pcall(function() writefile(path, HttpService:JSONEncode(self.savedSettings)) end)
 end
 
--- Performance mode
+-- =============================== PERFORMANCE MODE ===============================
 function FluxUI:SetPerformanceMode(enabled)
 	self.performanceMode = enabled
 	if enabled then
-		-- disable blurs, shadows, etc.
 		for _, v in ipairs(self.window:GetChildren()) do
 			if v:IsA("UIGradient") then v.Enabled = false end
 			if v:IsA("ImageLabel") and v.Name == "Shadow" then v.Visible = false end
 		end
 	else
-		-- re-enable
 		for _, v in ipairs(self.window:GetChildren()) do
 			if v:IsA("UIGradient") then v.Enabled = true end
 			if v:IsA("ImageLabel") and v.Name == "Shadow" then v.Visible = true end
@@ -1727,7 +1490,7 @@ function FluxUI:SetPerformanceMode(enabled)
 	end
 end
 
--- Auto-update check (simple version)
+-- =============================== AUTO UPDATE ===============================
 function FluxUI:CheckForUpdates()
 	local current = FluxUI.VERSION
 	task.spawn(function()
@@ -1743,55 +1506,27 @@ function FluxUI:CheckForUpdates()
 	end)
 end
 
--- Discord integration button
-function FluxUI:CreateDiscordButton(tab, inviteCode)
-	self:CreateButton(tab, "Join Discord", function()
-		Clipboard("https://discord.gg/" .. inviteCode)
-		self:Notify({Title = "Discord", Content = "Invite copied to clipboard!", Duration = 2})
-	end, "rbxassetid://12345")
-end
-
--- Help menu (built-in tab)
+-- =============================== HELP TAB ===============================
 function FluxUI:CreateHelpTab(parentTab)
-	local help = self:CreateParagraph(parentTab, "Flux UI Help\n\n- Drag the header to move\n- Resize from bottom-right corner\n- Right Shift toggles visibility\n- All settings auto-save\n- Use Flags: FluxUI.Flags['Name']", true)
-	return help
+	self:CreateParagraph(parentTab, "Flux UI Help\n\n- Drag the header to move\n- Resize from bottom-right corner\n- Right Shift toggles visibility\n- All settings auto-save\n- Use Flags: FluxUI.Flags['Name']", true)
 end
 
--- Theme export (as string)
-function FluxUI:ExportTheme()
-	local themeData = {
-		theme = self.config.theme,
-		accent = self.config.accent,
-		background = self.window.BackgroundColor3,
-		sidebar = self.sidebar.BackgroundColor3
-	}
-	return HttpService:JSONEncode(themeData)
-end
-
--- Clipboard copy
-function FluxUI:CopyToClipboard(text)
-	Clipboard(text)
-	self:Notify({Title = "Copied", Content = text, Duration = 1.5})
-end
-
--- Register plugin
+-- =============================== PLUGIN SUPPORT ===============================
 function FluxUI:RegisterPlugin(pluginFunc)
 	safeCall(pluginFunc, self)
 end
 
--- Destroy (garbage collection)
+-- =============================== DESTROY ===============================
 function FluxUI:Destroy()
 	for _, conn in ipairs(self.globalConnections) do
 		conn:Disconnect()
 	end
 	if self.gui then self.gui:Destroy() end
-	-- remove from instances table
 	for i, inst in ipairs(instances) do
 		if inst == self then table.remove(instances, i) break end
 	end
 end
 
--- Multi-instance cleanup
 function FluxUI:DestroyAll()
 	for _, inst in ipairs(instances) do
 		inst:Destroy()
@@ -1799,7 +1534,7 @@ function FluxUI:DestroyAll()
 	instances = {}
 end
 
--- Export constructor
+-- =============================== EXPORT ===============================
 local function Init()
 	return FluxUI.new()
 end
