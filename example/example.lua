@@ -1,213 +1,162 @@
--- FluxUI - Complete Example Script
--- Demonstrates all 150 features: window, tabs, every component, notifications, keybind HUD, modals, etc.
--- Run this in your executor after loading the FluxUI module.
+local Flux = loadstring(game:HttpGet("https://raw.githubusercontent.com/KercX/FluxUI/refs/heads/main/src/main.lua"))()  -- replace with your raw URL
 
-local FluxUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/KercX/FluxUI/refs/heads/main/src/main.lua"))()
-
--- Create main window with all optional features
-local Window = FluxUI:CreateWindow({
-    Name = "My first hub",
-    Author = "KercX",
-    Folder = "MyFolder",
-    ConfigSaving = true,
-    Theme = "dark",
-    Accent = "aqua"
+-- Create main window with Ocean theme
+local window = Flux:CreateWindow({
+    Title = "FluxUI Demo",
+    SubTitle = "All Elements Showcase",
+    TabWidth = 180,
+    Size = UDim2.fromOffset(700, 550),
+    Acrylic = true,          -- glass effect
+    Resizable = true,
+    Theme = "Ocean"          -- Ocean / Sunset / Forest / Dark / Light
 })
 
--- Create tabs for different categories
-local generalTab = Window:CreateTab("General")
-local controlsTab = Window:CreateTab("Controls")
-local displayTab = Window:CreateTab("Display")
-local advancedTab = Window:CreateTab("Advanced")
+-- ===========================
+-- TAB: COMBAT
+-- ===========================
+local combatTab = window:AddTab("Combat")
 
--- =============================== GENERAL TAB ===============================
--- Section header
-Window:CreateLabel(generalTab, "Basic Components", 16, true)
-Window:CreateDivider(generalTab)
-
--- Standard Button with icon
-Window:CreateButton(generalTab, "Click Me", function()
-    FluxUI:Notify({Title = "Button", Content = "You clicked the button!", Duration = 2})
-end, "rbxassetid://12345")
-
--- Toggle with auto-save
-local toggleState = false
-Window:CreateToggle(generalTab, "Feature Toggle", false, function(state)
-    toggleState = state
-    print("Toggle state:", state)
+-- Section: Weapons
+local weaponsSec = combatTab:AddSection("Weapons")
+weaponsSec:AddButton("Swing Sword", function()
+    print("Sword swung!")
+    Flux:Notify("Combat", "You swung your sword", 2, "info")
 end)
 
--- Slider (integer)
-Window:CreateSlider(generalTab, "Integer Slider", 0, 100, 50, function(v)
-    print("Integer value:", v)
+weaponsSec:AddButton("Shoot Bow", function()
+    print("Arrow shot!")
+    Flux:Notify("Combat", "Arrow fired", 1.5, "success")
 end)
 
--- Step Slider (snaps to multiples of 10)
-Window:CreateStepSlider(generalTab, "Step Slider (x10)", 0, 100, 10, 50, function(v)
-    print("Step value:", v)
+-- Toggle example
+local autoSwing = weaponsSec:AddToggle("Auto Swing", "auto_swing", true, function(state)
+    print("Auto swing enabled:", state)
 end)
 
--- Dual Slider (range)
-Window:CreateDualSlider(generalTab, "Range Selector", 0, 100, 20, 80, function(minVal, maxVal)
-    print("Range:", minVal, "-", maxVal)
+-- Slider example
+weaponsSec:AddSlider("Swing Speed", "swing_speed", 0.5, 3, 1.2, 0.1, function(value)
+    print("Swing speed set to:", value)
 end)
 
--- =============================== CONTROLS TAB ===============================
-Window:CreateLabel(controlsTab, "Input Components", 16, true)
-Window:CreateDivider(controlsTab)
-
--- Dropdown (single selection)
-Window:CreateDropdown(controlsTab, "Weapon Select", {"AK-47", "M4A1", "Sniper", "Shotgun"}, false, "AK-47", function(selected)
-    print("Selected weapon:", selected)
+-- Section: Targeting
+local targetSec = combatTab:AddSection("Targeting")
+targetSec:AddDropdown("Target Priority", "target_mode", {"Nearest", "Lowest HP", "Random"}, "Lowest HP", function(selected)
+    print("Target mode:", selected)
 end)
 
--- Dropdown (multi‑select)
-Window:CreateDropdown(controlsTab, "ESP Filters", {"Box", "Name", "Health", "Weapon", "Distance"}, true, {"Box", "Name"}, function(selectedList)
-    print("ESP filters:", table.concat(selectedList, ", "))
+targetSec:AddKeybind("Lock Target", "lock_key", "Q", function(key)
+    print("Lock target key set to:", key)
 end)
 
--- Searchable dropdown (multi‑select with search)
-Window:CreateDropdown(controlsTab, "Searchable Tags", {"Tag1", "Tag2", "LongTag", "AnotherTag", "Custom"}, true, {"Tag1"}, function(list)
-    print("Tags:", table.concat(list, ", "))
+targetSec:AddColorPicker("ESP Color", "esp_color", Color3.new(0, 1, 0), function(color)
+    print("ESP color changed to:", color)
 end)
 
--- TextBox (regular)
-Window:CreateTextBox(controlsTab, "Username", "Enter your username", function(text)
-    print("Username:", text)
+-- ===========================
+-- TAB: VISUALS
+-- ===========================
+local visualsTab = window:AddTab("Visuals")
+
+-- Section: ESP Settings
+local espSec = visualsTab:AddSection("ESP")
+espSec:AddToggle("Player ESP", "esp_enabled", true, function(val)
+    print("ESP enabled:", val)
 end)
 
--- Number input (only digits)
-Window:CreateNumberInput(controlsTab, "Bullet Count", 30, function(num)
-    print("Ammo:", num)
+espSec:AddToggle("Show Names", "esp_names", true)
+espSec:AddToggle("Show Distance", "esp_distance", false)
+
+espSec:AddSlider("ESP Transparency", "esp_trans", 0, 1, 0.3, 0.05, function(val)
+    print("Transparency:", val)
 end)
 
--- Secure TextBox (password)
-Window:CreateSecureTextBox(controlsTab, "Password", "Enter password", function(text)
-    print("Password (hidden):", text)
+espSec:AddParagraph("ESP will highlight enemies through walls. Adjust colors above.")
+
+-- Section: Misc Visuals
+local visMisc = visualsTab:AddSection("Misc")
+visMisc:AddProgressBar("Render Quality", "render_quality", 0, 100, 75)
+visMisc:AddSeparator()
+visMisc:AddRadioGroup("UI Style", "ui_style", {"Modern", "Classic", "Minimal"}, "Modern", function(style)
+    print("UI style selected:", style)
 end)
 
--- Checkbox
-Window:CreateCheckbox(controlsTab, "Silent Aim", true, function(state)
-    print("Silent aim:", state)
+-- ===========================
+-- TAB: UTILITIES
+-- ===========================
+local utilsTab = window:AddTab("Utilities")
+
+-- Section: Text Input
+local textSec = utilsTab:AddSection("Text Input")
+local textbox = textSec:AddTextbox("Player Message", "message", "Hello!", function(msg)
+    print("Message changed:", msg)
 end)
 
--- Radio Group
-Window:CreateRadioGroup(controlsTab, "Priority Target", {"Closest", "Lowest HP", "Visible", "Random"}, "Closest", function(option)
-    print("Priority:", option)
+textSec:AddButton("Send Message", function()
+    local msg = textbox.Get()
+    print("Sending:", msg)
+    Flux:Notify("Message", "Sent: " .. msg, 2, "info")
 end)
 
--- Keybind with icon (adds to HUD automatically)
-Window:CreateKeybind(controlsTab, "Trigger Key", "Q", function(key)
-    print("Trigger bound to", key)
-    Window:AddKeybindToHUD("Trigger", key)   -- Show in HUD
-end, "rbxassetid://67890")
-
--- Keybind without icon, also added to HUD manually
-local reloadKey = Window:CreateKeybind(controlsTab, "Reload Key", "R", function(key)
-    print("Reload bound to", key)
-    Window:AddKeybindToHUD("Reload", key)
-end)
-
--- Color Picker (with alpha)
-Window:CreateColorPicker(controlsTab, "ESP Color", Color3.new(1, 0.2, 0.3), function(color, alpha)
-    print("Color:", color, "Alpha:", alpha)
-end)
-
--- =============================== DISPLAY TAB ===============================
-Window:CreateLabel(displayTab, "Visual Feedback", 16, true)
-Window:CreateDivider(displayTab)
-
--- Progress Bar
-local progress = Window:CreateProgressBar(displayTab, "Loading Progress", 100)
-local percent = 0
-local progressTask = task.spawn(function()
-    while true do
-        percent = (percent + 0.01) % 1
-        progress.set(percent)
-        task.wait(0.02)
-    end
-end)
-
--- Circular Progress
-local circProgress = Window:CreateCircularProgress(displayTab, 40, 0)
-task.spawn(function()
-    local p = 0
-    while true do
-        p = (p + 0.02) % 1
-        circProgress.set(p)
-        task.wait(0.05)
-    end
-end)
-
--- Spinner
-local spinner = Window:CreateSpinner(displayTab, true)
-task.delay(5, function() spinner.setVisible(false) end)
-
--- Status Dot (active/inactive)
-local dotStatus = Window:CreateStatusDot(displayTab, "Script Status", true)
-task.delay(3, function() dotStatus.setActive(false) end)
-task.delay(6, function() dotStatus.setActive(true) end)
-
--- Badge
-Window:CreateBadge(displayTab, "New", Color3.fromRGB(200, 50, 50))
-Window:CreateBadge(displayTab, "Hot", Color3.fromRGB(220, 100, 0))
-
--- Image Display
-Window:CreateImageDisplay(displayTab, "rbxassetid://13160452207", UDim2.new(0, 100, 0, 100))
-
--- Label with rich text
-Window:CreateLabel(displayTab, "Supports <font color='#00ccff'>colored</font> text and <b>bold</b>", 14, true)
-
--- Paragraph (auto-wrapping)
-Window:CreateParagraph(displayTab, "This is a long paragraph that will automatically wrap to multiple lines. You can write a lot of text here and the UI will adjust its height accordingly. Rich text is also supported in paragraphs.", true)
-
--- =============================== ADVANCED TAB ===============================
-Window:CreateLabel(advancedTab, "Advanced & Utilities", 16, true)
-Window:CreateDivider(advancedTab)
-
--- Clipboard Button
-Window:CreateClipboardButton(advancedTab, "Copy Discord Link", "https://discord.gg/example")
-
--- Theme Switcher
-Window:CreateThemeSwitcher(advancedTab)
-
--- Performance Mode Toggle
-Window:CreateButton(advancedTab, "Toggle Performance Mode", function()
-    local perf = not Window.performanceMode
-    Window:SetPerformanceMode(perf)
-    FluxUI:Notify({Title = "Performance", Content = perf and "Mode ON (blur disabled)" or "Mode OFF", Duration = 2})
-end)
-
--- Config Reset Button
-Window:CreateButton(advancedTab, "Reset All Settings", function()
-    Window:ResetConfig()
-    FluxUI:Notify({Title = "Config", Content = "Settings reset to default", Duration = 2})
-end)
-
--- Modal Popup
-Window:CreateButton(advancedTab, "Show Modal", function()
-    Window:CreateModal("Confirm Action", "Do you really want to execute this action?", function()
-        FluxUI:Notify({Title = "Action", Content = "Confirmed!", Duration = 2})
-    end, function()
-        FluxUI:Notify({Title = "Action", Content = "Cancelled", Duration = 2})
+-- Section: Expandable Example
+local advSec = utilsTab:AddExpandableSection("Advanced Settings", function(inner)
+    inner:AddButton("Reset All Config", function()
+        Flux:ResetAllFlags()
+        Flux:Notify("Config", "All flags reset to defaults", 2, "warning")
     end)
+    inner:AddToggle("Debug Mode", "debug_mode", false, function(state)
+        print("Debug mode:", state)
+    end)
+    inner:AddSlider("Max FPS", "max_fps", 30, 240, 60, 1)
 end)
 
--- Help Tab (built-in)
-Window:CreateHelpTab(advancedTab)
+-- ===========================
+-- TAB: THEMES
+-- ===========================
+local themeTab = window:AddTab("Themes")
 
--- Plugin registration example
-FluxUI:RegisterPlugin(function(ui)
-    ui:Notify({Title = "Plugin", Content = "Hello from a custom plugin!", Duration = 2})
+local themeSec = themeTab:AddSection("Switch Theme")
+themeSec:AddButton("Ocean", function()
+    Flux:SetTheme("Ocean")
+end)
+themeSec:AddButton("Sunset", function()
+    Flux:SetTheme("Sunset")
+end)
+themeSec:AddButton("Forest", function()
+    Flux:SetTheme("Forest")
+end)
+themeSec:AddButton("Dark", function()
+    Flux:SetTheme("Dark")
+end)
+themeSec:AddButton("Light", function()
+    Flux:SetTheme("Light")
 end)
 
--- =============================== GLOBAL NOTIFICATIONS ===============================
-FluxUI:Notify({Title = "Flux UI", Content = "All 150 features loaded successfully!", Duration = 4})
+-- Section: Custom Theme Registration (example)
+local customSec = themeTab:AddSection("Custom Theme")
+customSec:AddButton("Register Neon Theme", function()
+    Flux:RegisterTheme("Neon", {
+        Primary = Color3.fromRGB(20, 20, 40),
+        Secondary = Color3.fromRGB(40, 40, 70),
+        Accent = Color3.fromRGB(255, 50, 150),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextDim = Color3.fromRGB(200, 200, 210),
+        Border = Color3.fromRGB(80, 80, 120),
+        Positive = Color3.fromRGB(0, 255, 100),
+        Negative = Color3.fromRGB(255, 50, 50),
+        Warning = Color3.fromRGB(255, 200, 0),
+        AcrylicTransparency = 0.85,
+    })
+    Flux:SetTheme("Neon")
+    Flux:Notify("Theme", "Neon theme applied", 2, "success")
+end)
+
+-- ===========================
+-- NOTIFICATION EXAMPLES
+-- ===========================
+-- Show welcome notification
+Flux:Notify("FluxUI", "All elements loaded successfully!", 3, "success")
+
+-- You can also call notifications from anywhere:
 task.delay(2, function()
-    FluxUI:Notify({Title = "Tip", Content = "Press Right Shift to hide/show the UI", Duration = 3})
+    Flux:Notify("Tip", "Try clicking the buttons and toggles", 4, "info")
 end)
-
--- =============================== FLAG SYSTEM DEMO ===============================
-print("Flag 'Feature Toggle':", FluxUI.Flags["Feature Toggle"])
-print("Flag 'Integer Slider':", FluxUI.Flags["Integer Slider"])
-print("Flag 'Trigger Key':", FluxUI.Flags["Trigger Slider"])
